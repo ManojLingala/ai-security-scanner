@@ -53,6 +53,11 @@ namespace AISecurityScanner.Infrastructure.Data
         public IRepository<ActivityLog> ActivityLogs =>
             _activityLogs ??= new RavenRepository<ActivityLog>(_context);
 
+        public IRepository<T> GetRepository<T>() where T : BaseEntity
+        {
+            return new RavenRepository<T>(_context);
+        }
+
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _session.SaveChangesAsync(cancellationToken);

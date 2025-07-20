@@ -118,9 +118,16 @@ builder.Services.AddScoped<IRepositoryService, RepositoryService>();
 builder.Services.AddScoped<IAIProviderService, AIProviderService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
 builder.Services.AddScoped<IVulnerabilityAnalysisService, VulnerabilityAnalysisService>();
+builder.Services.AddScoped<IPackageVulnerabilityService, PackageVulnerabilityService>();
 
 // Register Infrastructure Services
 builder.Services.AddScoped<IStaticCodeAnalyzer, StaticCodeAnalyzer>();
+
+// Register Package Scanning Services
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<INuGetPackageScanner, AISecurityScanner.Infrastructure.PackageScanning.NuGetPackageScanner>();
+builder.Services.AddScoped<INpmPackageScanner, AISecurityScanner.Infrastructure.PackageScanning.NpmPackageScanner>();
+builder.Services.AddScoped<IHallucinationDetectionService, AISecurityScanner.Infrastructure.AIProviders.HallucinationDetectionService>();
 
 // Register AI Providers
 builder.Services.AddHttpClient<OpenAIProvider>();

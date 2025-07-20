@@ -16,6 +16,7 @@ namespace AISecurityScanner.Domain.Interfaces
         IRepository<ApiKey> ApiKeys { get; }
         IRepository<ActivityLog> ActivityLogs { get; }
         
+        IRepository<T> GetRepository<T>() where T : BaseEntity;
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync(CancellationToken cancellationToken = default);
         Task CommitTransactionAsync(CancellationToken cancellationToken = default);

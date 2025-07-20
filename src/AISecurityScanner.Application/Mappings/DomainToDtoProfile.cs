@@ -24,6 +24,8 @@ namespace AISecurityScanner.Application.Mappings
             
             CreateMap<ActivityLog, ActivityLogDto>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? $"{src.User.FirstName} {src.User.LastName}" : "Unknown"));
+            
+            CreateMap<PackageVulnerability, PackageVulnerabilityDto>();
         }
     }
 }

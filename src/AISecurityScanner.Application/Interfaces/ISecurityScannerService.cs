@@ -18,5 +18,6 @@ namespace AISecurityScanner.Application.Interfaces
         Task<List<VulnerabilityDto>> GetScanVulnerabilitiesAsync(Guid scanId, CancellationToken cancellationToken = default);
         Task<ScanMetrics> GetScanMetricsAsync(Guid scanId, CancellationToken cancellationToken = default);
         Task<bool> RetryFailedScanAsync(Guid scanId, Guid userId, CancellationToken cancellationToken = default);
+        Task<PackageScanSummary> GetPackageVulnerabilitiesAsync(Guid scanId, CancellationToken cancellationToken = default);
     }
 }

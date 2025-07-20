@@ -20,17 +20,20 @@ namespace AISecurityScanner.Application.Services
         private readonly IMapper _mapper;
         private readonly ILogger<SecurityScannerService> _logger;
         private readonly IAIProviderService _aiProviderService;
+        private readonly IPackageVulnerabilityService _packageVulnerabilityService;
 
         public SecurityScannerService(
             IUnitOfWork unitOfWork,
             IMapper mapper,
             ILogger<SecurityScannerService> logger,
-            IAIProviderService aiProviderService)
+            IAIProviderService aiProviderService,
+            IPackageVulnerabilityService packageVulnerabilityService)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
             _aiProviderService = aiProviderService;
+            _packageVulnerabilityService = packageVulnerabilityService;
         }
 
         public async Task<ScanResult> StartScanAsync(StartScanRequest request, Guid userId, CancellationToken cancellationToken = default)
@@ -276,6 +279,43 @@ namespace AISecurityScanner.Application.Services
             {
                 _logger.LogError(ex, "Error retrying scan {ScanId}", scanId);
                 return false;
+            }
+        }
+
+        public async Task<PackageScanSummary> GetPackageVulnerabilitiesAsync(Guid scanId, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var packageVulnerabilities = await _packageVulnerabilityService.GetVulnerabilitiesForScanAsync(scanId, cancellationToken);
+                
+                var summary = new PackageScanSummary
+                {
+                    TotalPackages = packageVulnerabilities.Count,
+                    VulnerablePackages = packageVulnerabilities.Count(v => v.HasKnownVulnerabilities || v.IsPotentiallyHallucinated),
+                    OutdatedPackages = packageVulnerabilities.Count(v => v.IsOutdated),
+                    HallucinatedPackages = packageVulnerabilities.Count(v => v.IsPotentiallyHallucinated),
+                    
+                    VulnerabilitiesBySeverity = packageVulnerabilities
+                        .GroupBy(v => v.Severity)
+                        .ToDictionary(g => g.Key, g => g.Count()),
+                    
+                    VulnerabilitiesByPackageManager = packageVulnerabilities
+                        .GroupBy(v => v.PackageManager)
+                        .ToDictionary(g => g.Key, g => g.Count()),
+                    
+                    CriticalVulnerabilities = _mapper.Map<List<PackageVulnerabilityDto>>(
+                        packageVulnerabilities.Where(v => v.Severity == VulnerabilitySeverity.Critical).ToList()),
+                    
+                    HallucinatedPackagesList = _mapper.Map<List<PackageVulnerabilityDto>>(
+                        packageVulnerabilities.Where(v => v.IsPotentiallyHallucinated).ToList())
+                };
+
+                return summary;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting package vulnerabilities for scan {ScanId}", scanId);
+                return new PackageScanSummary();
             }
         }
     }
