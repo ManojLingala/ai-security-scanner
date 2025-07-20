@@ -1,0 +1,413 @@
+# AI Security Scanner
+
+A comprehensive AI-powered security vulnerability scanner for code repositories built with ASP.NET Core 8, featuring multi-AI provider support, real-time scanning capabilities, and compliance reporting.
+
+## 🚀 Features
+
+### Core Functionality
+- **Multi-AI Provider Support**: Integration with OpenAI GPT-4 and Anthropic Claude for enhanced vulnerability detection
+- **Static Code Analysis**: Roslyn-based C# code analysis with custom security rules
+- **Real-time Scanning**: SignalR integration for live scan progress updates
+- **Vulnerability Management**: Comprehensive vulnerability tracking, classification, and remediation
+- **Compliance Reporting**: Support for OWASP, CWE, NIST, ISO27001, and SOC2 standards
+
+### Enterprise Features
+- **Multi-tenant Architecture**: Organization-based isolation with usage quotas
+- **Team Management**: Role-based access control (Admin, Developer, Viewer)
+- **Usage Monitoring**: Track scans, users, and repositories with limits
+- **Activity Logging**: Comprehensive audit trail for all system activities
+
+### Technical Architecture
+- **Clean Architecture**: Domain-driven design with clear separation of concerns
+- **RavenDB**: Document database for flexible data modeling
+- **JWT Authentication**: Secure token-based authentication
+- **RESTful API**: Comprehensive REST API with Swagger documentation
+- **Logging**: Structured logging with Serilog
+
+## 🏗️ Architecture
+
+```
+AISecurityScanner/
+├── src/
+│   ├── AISecurityScanner.Domain/          # Domain entities and interfaces
+│   ├── AISecurityScanner.Application/     # Business logic and services
+│   ├── AISecurityScanner.Infrastructure/  # Data access and external services
+│   └── AISecurityScanner.API/             # Web API controllers and configuration
+└── tests/                                 # Unit and integration tests
+```
+
+### Domain Layer
+- **Entities**: Organization, User, Repository, SecurityScan, Vulnerability, AIProvider
+- **Enums**: VulnerabilitySeverity, ScanStatus, UserRole, ComplianceStandard
+- **Interfaces**: Repository contracts and domain services
+
+### Application Layer
+- **Services**: SecurityScannerService, VulnerabilityAnalysisService, TeamManagementService
+- **DTOs**: Data transfer objects for API communication
+- **Validators**: FluentValidation rules for input validation
+- **Mappings**: AutoMapper profiles for object mapping
+
+### Infrastructure Layer
+- **Data Access**: RavenDB repositories and Unit of Work pattern
+- **AI Providers**: OpenAI and Anthropic Claude integrations
+- **Code Analysis**: Static code analyzer using Roslyn
+- **External Services**: HTTP clients and third-party integrations
+
+### API Layer
+- **Controllers**: REST endpoints for all operations
+- **Authentication**: JWT Bearer token authentication
+- **SignalR Hubs**: Real-time communication for scan updates
+- **Middleware**: Error handling, logging, and CORS
+
+## 📋 Prerequisites
+
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [RavenDB](https://ravendb.net/download) (Community Edition is sufficient)
+- [Visual Studio 2022](https://visualstudio.microsoft.com/) or [VS Code](https://code.visualstudio.com/)
+- AI Provider API Keys:
+  - OpenAI API Key (optional)
+  - Anthropic API Key (optional)
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd AISecurityScanner
+```
+
+### 2. Setup RavenDB
+
+#### Option A: Local Installation
+1. Download and install RavenDB from [ravendb.net](https://ravendb.net/download)
+2. Start RavenDB server (default: http://localhost:8080)
+3. Create a database named `AISecurityScanner-Dev`
+
+#### Option B: Docker
+```bash
+docker run -d --name ravendb -p 8080:8080 ravendb/ravendb
+```
+
+### 3. Configure Application Settings
+
+Update `src/AISecurityScanner.API/appsettings.Development.json`:
+
+```json
+{
+  "RavenDb": {
+    "Urls": ["http://localhost:8080"],
+    "Database": "AISecurityScanner-Dev",
+    "UseEmbedded": false
+  },
+  "Jwt": {
+    "Secret": "YourSecretKeyHereMustBeAtLeast256Bits12345!@#$%",
+    "Issuer": "AISecurityScanner-Dev",
+    "Audience": "AISecurityScanner-Dev",
+    "ExpirationMinutes": 1440
+  },
+  "AIProviders": {
+    "OpenAI": {
+      "ApiKey": "your-openai-api-key-here",
+      "Model": "gpt-4-turbo-preview"
+    },
+    "Claude": {
+      "ApiKey": "your-anthropic-api-key-here",
+      "Model": "claude-3-sonnet-20240229"
+    }
+  }
+}
+```
+
+### 4. Build and Run
+
+```bash
+# Navigate to the API project
+cd src/AISecurityScanner.API
+
+# Restore dependencies
+dotnet restore
+
+# Build the application
+dotnet build
+
+# Run the application
+dotnet run
+```
+
+The application will start at:
+- **API**: https://localhost:7001
+- **Swagger UI**: https://localhost:7001/swagger
+
+## 📖 API Documentation
+
+### Authentication
+
+All API endpoints (except authentication) require a valid JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### Getting Started with the API
+
+1. **Register/Login** to get a JWT token:
+   ```
+   POST /api/auth/login
+   ```
+
+2. **Create an Organization** (if you're an admin):
+   ```
+   POST /api/organizations
+   ```
+
+3. **Add a Repository** to scan:
+   ```
+   POST /api/repositories
+   ```
+
+4. **Start a Security Scan**:
+   ```
+   POST /api/scans/start
+   ```
+
+5. **Monitor Scan Progress** via SignalR:
+   ```
+   Connect to: /hubs/scanprogress
+   ```
+
+### Key Endpoints
+
+#### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/refresh` - Refresh JWT token
+
+#### Scans
+- `GET /api/scans` - List scans
+- `POST /api/scans/start` - Start new scan
+- `GET /api/scans/{id}` - Get scan details
+- `DELETE /api/scans/{id}` - Cancel scan
+
+#### Repositories
+- `GET /api/repositories` - List repositories
+- `POST /api/repositories` - Add repository
+- `PUT /api/repositories/{id}` - Update repository
+- `DELETE /api/repositories/{id}` - Remove repository
+
+#### Vulnerabilities
+- `GET /api/vulnerabilities` - List vulnerabilities with filtering
+- `GET /api/vulnerabilities/{id}` - Get vulnerability details
+- `PUT /api/vulnerabilities/{id}/status` - Update vulnerability status
+- `POST /api/vulnerabilities/{id}/false-positive` - Mark as false positive
+
+#### Team Management
+- `GET /api/teams/organization` - Get organization details
+- `GET /api/teams/users` - List organization users
+- `POST /api/teams/users` - Create user
+- `POST /api/teams/invite` - Invite user
+
+## 🔧 Configuration
+
+### Environment Variables
+
+You can override configuration using environment variables:
+
+```bash
+export RavenDb__Urls__0="http://localhost:8080"
+export RavenDb__Database="AISecurityScanner-Prod"
+export Jwt__Secret="your-production-secret-key"
+export AIProviders__OpenAI__ApiKey="your-openai-key"
+export AIProviders__Claude__ApiKey="your-anthropic-key"
+```
+
+### AI Provider Configuration
+
+#### OpenAI Configuration
+```json
+{
+  "AIProviders": {
+    "OpenAI": {
+      "ApiKey": "sk-...",
+      "ApiEndpoint": "https://api.openai.com/v1/chat/completions",
+      "Model": "gpt-4-turbo-preview",
+      "MaxTokens": 4096,
+      "CostPerRequest": 0.03
+    }
+  }
+}
+```
+
+#### Anthropic Claude Configuration
+```json
+{
+  "AIProviders": {
+    "Claude": {
+      "ApiKey": "sk-ant-...",
+      "ApiEndpoint": "https://api.anthropic.com/v1/messages",
+      "Model": "claude-3-sonnet-20240229",
+      "MaxTokens": 4096,
+      "CostPerRequest": 0.015
+    }
+  }
+}
+```
+
+## 🧪 Testing
+
+### Running Unit Tests
+
+```bash
+# Navigate to the solution root
+cd AISecurityScanner
+
+# Run all tests
+dotnet test
+
+# Run tests with coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Manual Testing with Swagger
+
+1. Start the application: `dotnet run`
+2. Navigate to: https://localhost:7001/swagger
+3. Use the "Authorize" button to add your JWT token
+4. Test the various endpoints
+
+### Sample Test Data
+
+The application includes a data seeder that creates:
+- Demo organization with subscription limits
+- Sample users with different roles
+- Test repositories
+- Sample AI providers configuration
+
+## 🔒 Security Features
+
+### Authentication & Authorization
+- JWT Bearer token authentication
+- Role-based access control (Admin, Developer, Viewer)
+- Organization-based data isolation
+- Secure password handling (ready for bcrypt integration)
+
+### Input Validation
+- FluentValidation for all input models
+- SQL injection prevention through parameterized queries
+- XSS protection through proper encoding
+- Rate limiting ready for implementation
+
+### Data Security
+- Audit trails for all modifications
+- Soft delete for data retention
+- Encrypted sensitive configuration values
+- HTTPS enforcement
+
+## 📊 Monitoring & Logging
+
+### Structured Logging
+- Serilog with structured logging
+- File and console output
+- Configurable log levels
+- Request/response logging
+
+### Health Checks
+Ready for implementation:
+- RavenDB connectivity
+- AI provider availability
+- System resource monitoring
+
+## 🚀 Deployment
+
+### Docker Support (Ready for Implementation)
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/out .
+ENTRYPOINT ["dotnet", "AISecurityScanner.API.dll"]
+```
+
+### Production Configuration
+
+1. **Database**: Use RavenDB Cloud or self-hosted cluster
+2. **Secrets**: Use Azure Key Vault or similar
+3. **Logging**: Configure with Application Insights or ELK stack
+4. **SSL**: Configure proper SSL certificates
+5. **CORS**: Update allowed origins for production domains
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit changes: `git commit -am 'Add feature'`
+4. Push to branch: `git push origin feature-name`
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+### Common Issues
+
+**RavenDB Connection Issues**
+- Verify RavenDB is running on the configured port
+- Check firewall settings
+- Ensure database exists
+
+**AI Provider Errors**
+- Verify API keys are valid and have sufficient quota
+- Check network connectivity to AI provider endpoints
+- Review rate limiting settings
+
+**Authentication Issues**
+- Ensure JWT secret is properly configured
+- Check token expiration settings
+- Verify CORS configuration for frontend integration
+
+### Getting Help
+
+- Check the [Issues](../../issues) section for known problems
+- Review the [API documentation](https://localhost:7001/swagger) for endpoint details
+- Check application logs in the `logs/` directory
+
+## 🗺️ Roadmap
+
+### Upcoming Features
+- [ ] GitHub/GitLab integration for automatic repository scanning
+- [ ] Package vulnerability detection (NuGet, npm, etc.)
+- [ ] Advanced reporting and analytics dashboard
+- [ ] Webhook support for CI/CD integration
+- [ ] Machine learning model for custom vulnerability detection
+- [ ] Mobile app for scan notifications
+- [ ] Advanced compliance frameworks (PCI DSS, HIPAA)
+
+### Performance Improvements
+- [ ] Background job processing with Hangfire
+- [ ] Caching layer with Redis
+- [ ] Database query optimization
+- [ ] Horizontal scaling support
+
+---
+
+## 📈 Architecture Decisions
+
+### Why RavenDB?
+- **Flexibility**: Document model adapts well to evolving vulnerability schemas
+- **Performance**: Excellent read performance for analytics queries
+- **Ease of Use**: LINQ support and automatic indexing
+- **Scalability**: Built-in sharding and replication
+
+### Why Clean Architecture?
+- **Maintainability**: Clear separation of concerns
+- **Testability**: Easy to unit test business logic
+- **Flexibility**: Easy to swap implementations (database, AI providers)
+- **Scalability**: Supports microservices evolution
+
+### Why Multi-AI Providers?
+- **Reliability**: Fallback options if one provider is unavailable
+- **Cost Optimization**: Use different providers for different scan types
+- **Quality**: Combine results from multiple AI models for better accuracy
+- **Vendor Independence**: Avoid lock-in to a single AI provider

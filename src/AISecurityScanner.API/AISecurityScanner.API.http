@@ -1,0 +1,6 @@
+@AISecurityScanner.API_HostAddress = http://localhost:5105
+
+GET {{AISecurityScanner.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
