@@ -6,6 +6,7 @@ using AISecurityScanner.Application.Services;
 using AISecurityScanner.Infrastructure.Services;
 using AISecurityScanner.Infrastructure.AIProviders;
 using AISecurityScanner.Infrastructure.CodeAnalysis;
+using AISecurityScanner.Infrastructure;
 using AISecurityScanner.API.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -119,6 +120,7 @@ builder.Services.AddScoped<IAIProviderService, AIProviderService>();
 builder.Services.AddScoped<ITeamManagementService, TeamManagementService>();
 builder.Services.AddScoped<IVulnerabilityAnalysisService, VulnerabilityAnalysisService>();
 builder.Services.AddScoped<IPackageVulnerabilityService, PackageVulnerabilityService>();
+builder.Services.AddScoped<IComplianceService, ComplianceService>();
 
 // Register Infrastructure Services
 builder.Services.AddScoped<IStaticCodeAnalyzer, StaticCodeAnalyzer>();
@@ -132,10 +134,18 @@ builder.Services.AddScoped<IHallucinationDetectionService, AISecurityScanner.Inf
 // Register AI Providers
 builder.Services.AddHttpClient<OpenAIProvider>();
 builder.Services.AddHttpClient<ClaudeProvider>();
+builder.Services.AddHttpClient<MLVulnerabilityProvider>();
+builder.Services.AddHttpClient<HybridMLVulnerabilityProvider>();
+
+// Register Compliance Infrastructure
+builder.Services.AddComplianceInfrastructure();
 builder.Services.Configure<OpenAIConfiguration>(builder.Configuration.GetSection("AIProviders:OpenAI"));
 builder.Services.Configure<ClaudeConfiguration>(builder.Configuration.GetSection("AIProviders:Claude"));
 builder.Services.AddScoped<IAIProvider, OpenAIProvider>();
 builder.Services.AddScoped<IAIProvider, ClaudeProvider>();
+builder.Services.AddScoped<MLVulnerabilityProvider>();
+builder.Services.AddScoped<IAIProvider, MLVulnerabilityProvider>();
+builder.Services.AddScoped<IAIProvider, HybridMLVulnerabilityProvider>();
 
 // Register AutoMapper
 builder.Services.AddAutoMapper(typeof(Program), typeof(AISecurityScanner.Application.Mappings.DomainToDtoProfile));

@@ -21,35 +21,6 @@ namespace AISecurityScanner.Application.Interfaces
         Task<decimal> GetUsageCostAsync(Guid organizationId, DateTime from, DateTime to, CancellationToken cancellationToken = default);
     }
 
-    public class SecurityAnalysisResult
-    {
-        public bool IsSuccess { get; set; }
-        public string? ErrorMessage { get; set; }
-        public List<VulnerabilityDto> Vulnerabilities { get; set; } = new();
-        public decimal Confidence { get; set; }
-        public TimeSpan ResponseTime { get; set; }
-        public int TokensUsed { get; set; }
-        public decimal Cost { get; set; }
-        public string ProviderName { get; set; } = string.Empty;
-    }
-
-    public class PackageValidationResult
-    {
-        public bool IsSuccess { get; set; }
-        public string? ErrorMessage { get; set; }
-        public List<PackageInfo> ValidatedPackages { get; set; } = new();
-        public List<PackageInfo> HallucinatedPackages { get; set; } = new();
-        public TimeSpan ResponseTime { get; set; }
-        public decimal Cost { get; set; }
-    }
-
-    public class AIAnalysisContext
-    {
-        public string Language { get; set; } = string.Empty;
-        public string FileName { get; set; } = string.Empty;
-        public Guid OrganizationId { get; set; }
-        public bool IncludeAIDetection { get; set; } = true;
-        public bool IncludePackageValidation { get; set; } = true;
-        public string[] PreferredProviders { get; set; } = Array.Empty<string>();
-    }
+    // Note: SecurityAnalysisResult, PackageValidationResult, and AIAnalysisContext 
+    // are defined in AISecurityScanner.Domain.ValueObjects namespace
 }

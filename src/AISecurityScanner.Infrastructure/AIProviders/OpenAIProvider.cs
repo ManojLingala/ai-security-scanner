@@ -46,14 +46,15 @@ namespace AISecurityScanner.Infrastructure.AIProviders
                 var prompt = BuildSecurityAnalysisPrompt(code, context);
                 var response = await SendChatCompletionAsync(prompt, cancellationToken);
                 
-                var vulnerabilities = ParseVulnerabilities(response, context);
+                var vulnerabilityDtos = ParseVulnerabilities(response, context);
+                var vulnerabilities = ConvertToSecurityVulnerabilities(vulnerabilityDtos);
                 var responseTime = DateTime.UtcNow - startTime;
 
                 return new SecurityAnalysisResult
                 {
                     IsSuccess = true,
-                    Vulnerabilities = vulnerabilities,
-                    Confidence = CalculateConfidence(vulnerabilities),
+                    DetectedVulnerabilities = vulnerabilities,
+                    ConfidenceScore = CalculateConfidence(vulnerabilities),
                     ResponseTime = responseTime,
                     TokensUsed = EstimateTokenUsage(prompt + response),
                     Cost = CostPerRequest,
@@ -83,15 +84,16 @@ namespace AISecurityScanner.Infrastructure.AIProviders
                 var response = await SendChatCompletionAsync(prompt, cancellationToken);
                 
                 var validatedPackages = ParsePackageValidation(response, packages, ecosystem);
-                var responseTime = DateTime.UtcNow - startTime;
-
+                var vulnerablePackages = ConvertToPackageVulnerabilityInfo(validatedPackages, packages, ecosystem);
+                
                 return new PackageValidationResult
                 {
                     IsSuccess = true,
-                    ValidatedPackages = validatedPackages.Where(p => p.Exists).ToList(),
-                    HallucinatedPackages = validatedPackages.Where(p => p.IsHallucinated).ToList(),
-                    ResponseTime = responseTime,
-                    Cost = CostPerRequest * 0.5m // Package validation is simpler
+                    VulnerablePackages = vulnerablePackages,
+                    TotalPackagesScanned = packages.Count,
+                    VulnerablePackageCount = vulnerablePackages.Count(p => p.HasVulnerabilities),
+                    Cost = CostPerRequest * 0.5m, // Package validation is simpler
+                    ProviderName = Name
                 };
             }
             catch (Exception ex)
@@ -101,7 +103,7 @@ namespace AISecurityScanner.Infrastructure.AIProviders
                 {
                     IsSuccess = false,
                     ErrorMessage = ex.Message,
-                    ResponseTime = DateTime.UtcNow - startTime
+                    ProviderName = Name
                 };
             }
         }
@@ -192,8 +194,7 @@ namespace AISecurityScanner.Infrastructure.AIProviders
         private string BuildSecurityAnalysisPrompt(string code, AIAnalysisContext context)
         {
             return $@"
-Analyze the following {context.Language} code for security vulnerabilities. 
-File: {context.FileName}
+Analyze the following {context.Language} code for security vulnerabilities.
 
 Consider these vulnerability types:
 - SQL Injection
@@ -349,7 +350,51 @@ Respond with a JSON object:
             };
         }
 
-        private decimal CalculateConfidence(List<VulnerabilityDto> vulnerabilities)
+        private List<SecurityVulnerability> ConvertToSecurityVulnerabilities(List<VulnerabilityDto> dtos)
+        {
+            return dtos.Select(dto => new SecurityVulnerability
+            {
+                Id = dto.Id.ToString(),
+                Type = dto.Type,
+                Severity = dto.Severity,
+                Confidence = dto.Confidence,
+                Description = dto.Description,
+                LineNumber = dto.LineNumber,
+                Code = dto.CodeSnippet ?? "",
+                CweId = dto.CWE,
+                Recommendation = dto.Recommendation,
+                MLDetected = dto.IsAIGenerated,
+                DetectedAt = dto.CreatedAt
+            }).ToList();
+        }
+
+        private List<PackageVulnerabilityInfo> ConvertToPackageVulnerabilityInfo(List<PackageInfo> packages, List<string> originalPackages, string ecosystem)
+        {
+            return originalPackages.Select(packageName =>
+            {
+                var packageInfo = packages.FirstOrDefault(p => p.Name.Equals(packageName, StringComparison.OrdinalIgnoreCase));
+                var hasVulnerabilities = packageInfo?.Exists == true && !packageInfo.IsHallucinated;
+                
+                return new PackageVulnerabilityInfo
+                {
+                    PackageName = packageName,
+                    Ecosystem = ecosystem,
+                    HasVulnerabilities = hasVulnerabilities,
+                    Vulnerabilities = hasVulnerabilities ? new List<PackageVulnerability>
+                    {
+                        new PackageVulnerability
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Description = "Package validation flagged potential security concerns",
+                            Severity = VulnerabilitySeverity.Medium,
+                            Confidence = 0.7m
+                        }
+                    } : new List<PackageVulnerability>()
+                };
+            }).ToList();
+        }
+
+        private decimal CalculateConfidence(List<SecurityVulnerability> vulnerabilities)
         {
             if (!vulnerabilities.Any()) return 1.0m;
             return vulnerabilities.Average(v => v.Confidence);

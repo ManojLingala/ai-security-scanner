@@ -9,7 +9,9 @@ A comprehensive AI-powered security vulnerability scanner for code repositories 
 - **Static Code Analysis**: Roslyn-based C# code analysis with custom security rules
 - **Real-time Scanning**: SignalR integration for live scan progress updates
 - **Vulnerability Management**: Comprehensive vulnerability tracking, classification, and remediation
-- **Compliance Reporting**: Support for OWASP, CWE, NIST, ISO27001, and SOC2 standards
+- **Advanced Compliance Framework**: Support for PCI DSS v4.0, HIPAA Security Rule, SOX, GDPR, plus OWASP, CWE, NIST, ISO27001, and SOC2 standards
+- **Real-time Compliance Monitoring**: FileSystemWatcher-based monitoring for continuous compliance validation
+- **Compliance Dashboard**: Comprehensive scoring, violation tracking, and remediation guidance
 
 ### Enterprise Features
 - **Multi-tenant Architecture**: Organization-based isolation with usage quotas
@@ -51,6 +53,8 @@ AISecurityScanner/
 - **Data Access**: RavenDB repositories and Unit of Work pattern
 - **AI Providers**: OpenAI and Anthropic Claude integrations
 - **Code Analysis**: Static code analyzer using Roslyn
+- **Compliance Providers**: PCI DSS v4.0, HIPAA, SOX, and GDPR compliance engines
+- **Real-time Monitoring**: FileSystemWatcher-based compliance monitoring service
 - **External Services**: HTTP clients and third-party integrations
 
 ### API Layer
@@ -136,8 +140,8 @@ dotnet run
 ```
 
 The application will start at:
-- **API**: https://localhost:7001
-- **Swagger UI**: https://localhost:7001/swagger
+- **API**: http://localhost:5105
+- **Swagger UI**: http://localhost:5105/swagger
 
 ## 📖 API Documentation
 
@@ -207,6 +211,15 @@ Authorization: Bearer <your-jwt-token>
 - `POST /api/teams/users` - Create user
 - `POST /api/teams/invite` - Invite user
 
+#### Compliance
+- `GET /api/compliance/frameworks` - List supported compliance frameworks
+- `POST /api/compliance/scan` - Start compliance scan
+- `GET /api/compliance/scan/{id}` - Get compliance scan results
+- `GET /api/compliance/violations` - List compliance violations
+- `PUT /api/compliance/violations/{id}` - Update violation status
+- `GET /api/compliance/dashboard/{framework}` - Get compliance dashboard
+- `POST /api/compliance/export` - Export compliance report
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -253,6 +266,93 @@ export AIProviders__Claude__ApiKey="your-anthropic-key"
 }
 ```
 
+## 🛡️ Compliance Framework
+
+The AI Security Scanner includes a comprehensive compliance framework supporting multiple industry standards:
+
+### Supported Frameworks
+
+#### PCI DSS v4.0 (Payment Card Industry Data Security Standard)
+- **Network Security**: Firewall and system configuration rules
+- **Cardholder Data Protection**: Encryption and storage requirements
+- **Data Transmission Security**: TLS/SSL validation and secure protocols
+- **Secure Development**: Input validation, XSS prevention, SQL injection detection
+- **Access Control**: Authentication and authorization requirements
+- **Audit Logging**: Comprehensive activity tracking
+- **22 rules** covering all PCI DSS requirements
+
+#### HIPAA Security Rule (Health Insurance Portability and Accountability Act)
+- **Administrative Safeguards**: Security officer responsibilities and access management
+- **Technical Safeguards**: Access control, audit controls, integrity, authentication, transmission security
+- **Physical Safeguards**: Facility access, workstation security, device controls
+- **PHI Detection**: Social Security Numbers, Medical Record Numbers, Date of Birth patterns
+- **Information Disclosure**: Error handling and debug information protection
+- **18 rules** covering all HIPAA Security Rule requirements
+
+#### SOX (Sarbanes-Oxley Act)
+- **Financial Reporting Controls**: Section 302 and 404 compliance
+- **Internal Controls**: Documentation and testing requirements
+- **Disclosure Controls**: Timely and accurate financial reporting
+- **Document Retention**: Record keeping requirements
+- **IT General Controls**: System access and change management
+- **15 rules** covering key SOX IT requirements
+
+#### GDPR (General Data Protection Regulation)
+- **Data Processing Principles**: Lawful basis and data minimization
+- **Consent Management**: Valid consent collection and withdrawal
+- **Data Subject Rights**: Access, rectification, erasure, and portability
+- **Privacy by Design**: Data protection impact assessments
+- **Security Measures**: Encryption and pseudonymization
+- **Breach Notification**: 72-hour notification requirements
+- **21 rules** covering essential GDPR requirements
+
+### Compliance Features
+
+#### Real-time Monitoring
+- **FileSystemWatcher Integration**: Continuous monitoring of code changes
+- **Background Service**: Always-on compliance validation
+- **Event-driven Architecture**: Immediate violation detection and notifications
+- **Configurable Monitoring Paths**: Flexible directory and file monitoring
+
+#### Compliance Dashboard
+- **Overall Compliance Score**: Weighted scoring across all frameworks
+- **Category Breakdown**: Detailed scores by compliance area
+- **Violation Tracking**: Severity-based violation management
+- **Trend Analysis**: Compliance score evolution over time
+- **Executive Reporting**: High-level compliance status summaries
+
+#### Violation Management
+- **Severity Classification**: Critical, High, Medium, Low severity levels
+- **Remediation Guidance**: Specific fix recommendations for each violation
+- **Status Tracking**: Open, In Progress, Resolved, Accepted, False Positive
+- **Evidence Collection**: Automatic collection of compliance evidence
+- **Audit Trail**: Complete history of violation lifecycle
+
+#### Export and Reporting
+- **Multiple Formats**: JSON, XML, CSV, PDF report generation
+- **Scheduled Reports**: Automated compliance reporting
+- **Custom Report Templates**: Tailored reports for different stakeholders
+- **Webhook Integration**: Real-time compliance notifications
+- **API Access**: Programmatic access to compliance data
+
+### Configuration Example
+
+```json
+{
+  "Compliance": {
+    "EnabledFrameworks": ["PCI_DSS", "HIPAA", "SOX", "GDPR"],
+    "MonitoringPaths": [
+      "/src",
+      "/config",
+      "/scripts"
+    ],
+    "RealTimeMonitoring": true,
+    "ExportFormats": ["JSON", "PDF"],
+    "WebhookUrl": "https://your-compliance-webhook.com/notifications"
+  }
+}
+```
+
 ## 🧪 Testing
 
 ### Running Unit Tests
@@ -271,9 +371,9 @@ dotnet test --collect:"XPlat Code Coverage"
 ### Manual Testing with Swagger
 
 1. Start the application: `dotnet run`
-2. Navigate to: https://localhost:7001/swagger
+2. Navigate to: http://localhost:5105/swagger
 3. Use the "Authorize" button to add your JWT token
-4. Test the various endpoints
+4. Test the various endpoints including new compliance features
 
 ### Sample Test Data
 
@@ -370,7 +470,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ### Getting Help
 
 - Check the [Issues](../../issues) section for known problems
-- Review the [API documentation](https://localhost:7001/swagger) for endpoint details
+- Review the [API documentation](http://localhost:5105/swagger) for endpoint details
 - Check application logs in the `logs/` directory
 
 ## 🗺️ Roadmap
@@ -382,7 +482,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [ ] Webhook support for CI/CD integration
 - [ ] Machine learning model for custom vulnerability detection
 - [ ] Mobile app for scan notifications
-- [ ] Advanced compliance frameworks (PCI DSS, HIPAA)
+- [x] **Advanced compliance frameworks (PCI DSS v4.0, HIPAA, SOX, GDPR)** ✅
+- [ ] Additional compliance frameworks (FedRAMP, CCPA, ISO 27001)
+- [ ] Compliance trend analysis and forecasting
+- [ ] Automated compliance remediation suggestions
 
 ### Performance Improvements
 - [ ] Background job processing with Hangfire
