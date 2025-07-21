@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  ravendb:
+    image: ravendb/ravendb:5.4-ubuntu-latest
+    ports:
+      - "8080:8080"
+    environment:
+      - RAVEN_Setup_Mode=None
+      - RAVEN_Security_UnsecuredAccessAllowed=PublicNetwork
+      - RAVEN_License_Eula_Accepted=true
+    volumes:
+      - ravendb_data:/opt/RavenDB/Server/RavenData
+    networks:
+      - aisecurity-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/debug/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  aisecurityscanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5105:5105"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - RavenDb__Urls__0=http://ravendb:8080
+      - RavenDb__Database=AISecurityScanner-Prod
+      - Jwt__Secret=YourProductionSecretKeyMustBeAtLeast256BitsLong!
+      - Jwt__Issuer=AISecurityScanner-Prod
+      - Jwt__Audience=AISecurityScanner-Prod
+      - Jwt__ExpirationMinutes=1440
+      - AIProviders__Claude__ApiKey=${CLAUDE_API_KEY}
+      - AIProviders__Claude__Model=claude-3-sonnet-20240229
+      - AIProviders__Claude__MaxTokens=4096
+      - Compliance__EnabledFrameworks__0=PCI_DSS
+      - Compliance__EnabledFrameworks__1=HIPAA
+      - Compliance__EnabledFrameworks__2=SOX
+      - Compliance__EnabledFrameworks__3=GDPR
+      - Compliance__RealTimeMonitoring=true
+    depends_on:
+      ravendb:
+        condition: service_healthy
+    networks:
+      - aisecurity-network
+    volumes:
+      - ./scans:/app/scans
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5105/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ravendb_data:
+    driver: local
+
+networks:
+  aisecurity-network:
+    driver: bridge

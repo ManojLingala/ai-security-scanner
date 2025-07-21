@@ -220,6 +220,299 @@ Authorization: Bearer <your-jwt-token>
 - `GET /api/compliance/dashboard/{framework}` - Get compliance dashboard
 - `POST /api/compliance/export` - Export compliance report
 
+## 🔧 CLI Architecture
+
+The AI Security Scanner includes a comprehensive command-line interface (CLI) for developer workflows and CI/CD integration. The CLI provides a streamlined architecture that bypasses the full application layer for performance and simplicity.
+
+### Command Translation Flow
+
+```
+User Input → CLI Parser → Command Handler → Services → AI Providers → Results → CLI Output
+```
+
+#### Example: File Scanning Command Flow
+
+When you run `aiscan scan file UserController.cs --format json`, here's how it flows through the system:
+
+1. **Command Parsing**: System.CommandLine parses the command into components
+2. **Authentication Check**: Verifies stored Claude token and user consent
+3. **Service Resolution**: Gets ScanService from dependency injection container
+4. **File Processing**: Reads file content and detects programming language
+5. **AI Analysis**: Calls Claude API directly with security analysis prompt
+6. **Result Processing**: Parses AI response into SecurityVulnerability objects
+7. **Output Formatting**: Displays results in requested format (table/json/csv)
+
+#### CLI vs Full Application Architecture
+
+| Aspect | CLI Approach | Full Application |
+|--------|-------------|------------------|
+| **Authentication** | Local config file (`~/.aiscan/config.json`) | JWT tokens + database |
+| **Data Storage** | None (stateless) | RavenDB persistence |
+| **Service Layer** | Direct AI provider calls | Layered architecture |
+| **Startup Time** | Fast (~500ms) | Slower (~2-3s) |
+| **Memory Usage** | Low (~50MB) | Higher (~150MB) |
+| **Use Case** | Developer workflow | Enterprise platform |
+
+#### Key Architectural Benefits
+
+- **Performance**: Fast startup with minimal memory footprint
+- **Simplicity**: Fewer dependencies and direct API calls
+- **Portability**: Single binary deployment with no database setup
+- **Developer Experience**: Immediate results with familiar CLI patterns
+
+For detailed CLI architecture documentation, see [CLI_ARCHITECTURE.md](CLI_ARCHITECTURE.md).
+
+### CLI Installation and Usage
+
+#### Quick Installation (Option 2 - Recommended for Developers)
+
+**Prerequisites:**
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) installed
+- [Claude Code CLI](https://claude.ai/code) installed and authenticated (or Claude API key)
+
+**Step 1: Build and Install CLI Globally**
+```bash
+# Clone the repository
+git clone <your-repository-url>
+cd AISecurityScanner
+
+# Navigate to CLI project
+cd src/AISecurityScanner.CLI
+
+# Build and package
+dotnet build --configuration Release
+dotnet pack --configuration Release
+
+# Install globally
+dotnet tool install --global --add-source ./bin/Release AISecurityScanner.CLI
+
+# Verify installation
+aiscan --help
+aiscan version
+```
+
+**Step 2: Authenticate**
+```bash
+# Option A: Using Claude Code CLI (if installed)
+aiscan auth login
+
+# Option B: Manual API key entry (get key from https://console.anthropic.com/)
+aiscan auth login
+# Follow prompts to enter your Claude API key
+
+# Verify authentication
+aiscan auth status
+```
+
+**Step 3: Start Scanning**
+```bash
+# Scan a single file
+aiscan scan file Controllers/UserController.cs
+
+# Scan with different output formats
+aiscan scan file Controllers/UserController.cs --format json
+aiscan scan file Controllers/UserController.cs --format csv > results.csv
+
+# Scan entire directory
+aiscan scan directory ./src --format table
+
+# Scan current project
+aiscan scan project
+
+# Run compliance scans
+aiscan compliance list
+aiscan compliance scan --framework pci-dss --path ./src
+aiscan compliance scan --framework hipaa --format json
+```
+
+#### Available Commands Reference
+
+**Authentication Commands:**
+```bash
+aiscan auth login          # Authenticate with Claude API
+aiscan auth status         # Check authentication status  
+aiscan auth logout         # Clear stored credentials
+```
+
+**Security Scanning Commands:**
+```bash
+aiscan scan file <path>                    # Scan single file
+aiscan scan directory <path>               # Scan directory  
+aiscan scan project                        # Scan current project
+aiscan scan file <path> --format json     # JSON output
+aiscan scan file <path> --format csv      # CSV output
+aiscan scan directory <path> --recursive  # Recursive directory scan
+```
+
+**Compliance Scanning Commands:**
+```bash
+aiscan compliance list                                    # List all frameworks
+aiscan compliance scan --framework pci-dss --path ./src  # PCI DSS scan
+aiscan compliance scan --framework hipaa --format json   # HIPAA scan
+aiscan compliance scan --framework sox --format csv      # SOX scan  
+aiscan compliance scan --framework gdpr --path ./code    # GDPR scan
+```
+
+**Configuration Commands:**
+```bash
+aiscan config list                         # Show all settings
+aiscan config get output_format            # Get specific setting
+aiscan config set output_format json       # Set default format
+aiscan config set scan_timeout 300         # Set scan timeout
+```
+
+#### Integration Examples
+
+**Pre-commit Hook** (`.git/hooks/pre-commit`):
+```bash
+#!/bin/bash
+# Scan staged files before commit
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cs|js|ts|py|java)$')
+
+for FILE in $STAGED_FILES; do
+  echo "🔍 Scanning $FILE..."
+  aiscan scan file "$FILE" --format json | jq -e '.vulnerabilities | length == 0' > /dev/null
+  if [ $? -ne 0 ]; then
+    echo "❌ Security vulnerabilities found in $FILE"
+    aiscan scan file "$FILE"
+    exit 1
+  fi
+done
+
+echo "✅ Security scan passed!"
+```
+
+**GitHub Actions Integration:**
+```yaml
+- name: Security Scan
+  run: |
+    # Install CLI
+    git clone <your-repo-url>
+    cd AISecurityScanner/src/AISecurityScanner.CLI
+    dotnet tool install --global --add-source ./bin/Release AISecurityScanner.CLI
+    
+    # Authenticate
+    echo "${{ secrets.CLAUDE_API_KEY }}" | aiscan auth login --token-stdin
+    
+    # Run scans
+    aiscan scan project --format json > security-results.json
+    
+    # Check for critical issues
+    CRITICAL_COUNT=$(cat security-results.json | jq '[.vulnerabilities[] | select(.severity == "Critical")] | length')
+    if [ "$CRITICAL_COUNT" -gt 0 ]; then
+      echo "❌ Found $CRITICAL_COUNT critical vulnerabilities"
+      exit 1
+    fi
+```
+
+**CI/CD Pipeline Integration:**
+```bash
+# Build step
+aiscan scan project --format json > security-report.json
+
+# Quality gate
+CRITICAL_COUNT=$(cat security-report.json | jq '[.vulnerabilities[] | select(.severity == "Critical")] | length')
+HIGH_COUNT=$(cat security-report.json | jq '[.vulnerabilities[] | select(.severity == "High")] | length')
+
+if [ "$CRITICAL_COUNT" -gt 0 ] || [ "$HIGH_COUNT" -gt 5 ]; then
+  echo "❌ Security quality gate failed"
+  echo "Critical: $CRITICAL_COUNT, High: $HIGH_COUNT"
+  exit 1
+fi
+
+echo "✅ Security quality gate passed"
+```
+
+#### Supported File Types and Languages
+
+- **C#**: `.cs` files
+- **JavaScript/TypeScript**: `.js`, `.ts` files  
+- **Python**: `.py` files
+- **Java**: `.java` files
+- **C/C++**: `.c`, `.cpp`, `.cxx`, `.cc` files
+- **PHP**: `.php` files
+- **Configuration**: `.config`, `.json`, `.xml`, `.yml`, `.yaml` files
+- **Database**: `.sql` files
+- **Logs**: `.txt`, `.log` files
+
+#### Output Formats
+
+**Table Format (Default):**
+```
+🔍 Scanning file: Controllers/UserController.cs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Scan completed in 2.34s
+
+🚨 High Severity (2 issues):
+ -------------------------------------------------------------------------------
+ | Line | Type              | Description                      | Confidence | CWE |
+ -------------------------------------------------------------------------------
+ | 42   | SQL Injection     | Unsanitized user input in query | 9.2        | 89  |
+ | 67   | XSS               | Unencoded output to response     | 8.7        | 79  |
+ -------------------------------------------------------------------------------
+```
+
+**JSON Format:**
+```json
+{
+  "vulnerabilities": [
+    {
+      "type": "SQL Injection",
+      "severity": "High", 
+      "confidence": 9.2,
+      "lineNumber": 42,
+      "description": "Unsanitized user input in SQL query",
+      "recommendation": "Use parameterized queries",
+      "cweId": "CWE-89"
+    }
+  ]
+}
+```
+
+**CSV Format:**
+```csv
+Line,Type,Severity,Description,Confidence,CWE,Recommendation
+42,SQL Injection,High,"Unsanitized user input in query",9.2,89,"Use parameterized queries"
+67,XSS,High,"Unencoded output to response",8.7,79,"Encode all user output"
+```
+
+#### Troubleshooting
+
+**Common Issues:**
+
+1. **CLI not found after installation:**
+   ```bash
+   # Ensure .NET tools directory is in PATH
+   export PATH="$PATH:$HOME/.dotnet/tools"
+   ```
+
+2. **Authentication fails:**
+   ```bash
+   # Check your API key
+   aiscan auth logout
+   aiscan auth login
+   
+   # Verify connectivity
+   curl -I https://api.anthropic.com/
+   ```
+
+3. **No files found for scanning:**
+   ```bash
+   # Check supported file types
+   find . -name "*.cs" -o -name "*.js" -o -name "*.py"
+   ```
+
+4. **Permission errors:**
+   ```bash
+   # Check file permissions
+   ls -la /path/to/files
+   
+   # Update CLI
+   dotnet tool update --global aisecurityscanner.cli
+   ```
+
+For complete CLI documentation and advanced usage, see [CLI_USAGE.md](CLI_USAGE.md).
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -417,24 +710,554 @@ Ready for implementation:
 - AI provider availability
 - System resource monitoring
 
-## 🚀 Deployment
+## 🚀 Deployment Guide
 
-### Docker Support (Ready for Implementation)
+### Option 1: CLI Tool Deployment (Recommended for Developers)
 
+#### Prerequisites
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) installed
+- [Claude Code CLI](https://claude.ai/code) installed and authenticated
+- Git for cloning the repository
+
+#### Step 1: Clone and Build
+```bash
+# Clone the repository
+git clone <your-repository-url>
+cd AISecurityScanner
+
+# Build the CLI
+cd src/AISecurityScanner.CLI
+dotnet build --configuration Release
+```
+
+#### Step 2: Install as Global Tool
+```bash
+# Package the CLI as a global tool
+dotnet pack --configuration Release
+
+# Install globally (replace version with actual version)
+dotnet tool install --global --add-source ./bin/Release AISecurityScanner.CLI
+```
+
+#### Step 3: Verify Installation
+```bash
+# Test the installation
+aiscan --help
+aiscan version
+```
+
+### Option 2: Docker Deployment (Full API + CLI)
+
+#### Step 1: Create Dockerfile
 ```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy project files
+COPY ["src/AISecurityScanner.API/AISecurityScanner.API.csproj", "src/AISecurityScanner.API/"]
+COPY ["src/AISecurityScanner.CLI/AISecurityScanner.CLI.csproj", "src/AISecurityScanner.CLI/"]
+COPY ["src/AISecurityScanner.Application/AISecurityScanner.Application.csproj", "src/AISecurityScanner.Application/"]
+COPY ["src/AISecurityScanner.Domain/AISecurityScanner.Domain.csproj", "src/AISecurityScanner.Domain/"]
+COPY ["src/AISecurityScanner.Infrastructure/AISecurityScanner.Infrastructure.csproj", "src/AISecurityScanner.Infrastructure/"]
+
+# Restore dependencies
+RUN dotnet restore "src/AISecurityScanner.API/AISecurityScanner.API.csproj"
+RUN dotnet restore "src/AISecurityScanner.CLI/AISecurityScanner.CLI.csproj"
+
+# Copy source code
+COPY . .
+
+# Build applications
+RUN dotnet build "src/AISecurityScanner.API/AISecurityScanner.API.csproj" -c Release -o /app/api
+RUN dotnet build "src/AISecurityScanner.CLI/AISecurityScanner.CLI.csproj" -c Release -o /app/cli
+
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=build /app/out .
-ENTRYPOINT ["dotnet", "AISecurityScanner.API.dll"]
+
+# Install .NET SDK for CLI support
+RUN apt-get update && apt-get install -y wget
+RUN wget https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+RUN dpkg -i packages-microsoft-prod.deb
+RUN apt-get update && apt-get install -y dotnet-sdk-8.0
+
+# Copy applications
+COPY --from=build /app/api ./api
+COPY --from=build /app/cli ./cli
+
+# Create symbolic link for CLI
+RUN ln -s /app/cli/aiscan /usr/local/bin/aiscan
+
+# Expose ports
+EXPOSE 5105
+
+# Set environment variables
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:5105
+
+# Default to API, but allow CLI usage
+ENTRYPOINT ["dotnet", "/app/api/AISecurityScanner.API.dll"]
+```
+
+#### Step 2: Create Docker Compose
+```yaml
+version: '3.8'
+
+services:
+  ravendb:
+    image: ravendb/ravendb:5.4-ubuntu-latest
+    ports:
+      - "8080:8080"
+    environment:
+      - RAVEN_Setup_Mode=None
+      - RAVEN_Security_UnsecuredAccessAllowed=PublicNetwork
+    volumes:
+      - ravendb_data:/opt/RavenDB/Server/RavenData
+
+  aisecurityscanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5105:5105"
+    environment:
+      - RavenDb__Urls__0=http://ravendb:8080
+      - RavenDb__Database=AISecurityScanner-Prod
+      - Jwt__Secret=YourProductionSecretKeyMustBeAtLeast256BitsLong!
+      - AIProviders__Claude__ApiKey=${CLAUDE_API_KEY}
+    depends_on:
+      - ravendb
+    volumes:
+      - ./scans:/app/scans  # Volume for scan results
+      
+volumes:
+  ravendb_data:
+```
+
+#### Step 3: Deploy with Docker
+```bash
+# Set your Claude API key
+export CLAUDE_API_KEY="your-claude-api-key-here"
+
+# Build and start services
+docker-compose up --build -d
+
+# Verify deployment
+curl http://localhost:5105/api/health
+```
+
+### Option 3: Kubernetes Deployment
+
+#### Step 1: Create Kubernetes Manifests
+```yaml
+# kubernetes/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aisecurityscanner
+---
+# kubernetes/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aiscan-config
+  namespace: aisecurityscanner
+data:
+  appsettings.json: |
+    {
+      "RavenDb": {
+        "Urls": ["http://ravendb-service:8080"],
+        "Database": "AISecurityScanner-Prod"
+      },
+      "Jwt": {
+        "Issuer": "AISecurityScanner-Prod",
+        "Audience": "AISecurityScanner-Prod",
+        "ExpirationMinutes": 1440
+      }
+    }
+---
+# kubernetes/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aiscan-secrets
+  namespace: aisecurityscanner
+type: Opaque
+data:
+  jwt-secret: WW91clByb2R1Y3Rpb25TZWNyZXRLZXlNdXN0QmVBdExlYXN0MjU2Qml0c0xvbmch  # Base64 encoded
+  claude-api-key: c2stYW50LXlvdXItY2xhdWRlLWFwaS1rZXktaGVyZQ==  # Base64 encoded
+---
+# kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aisecurityscanner
+  namespace: aisecurityscanner
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aisecurityscanner
+  template:
+    metadata:
+      labels:
+        app: aisecurityscanner
+    spec:
+      containers:
+      - name: aisecurityscanner
+        image: your-registry/aisecurityscanner:latest
+        ports:
+        - containerPort: 5105
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: Jwt__Secret
+          valueFrom:
+            secretKeyRef:
+              name: aiscan-secrets
+              key: jwt-secret
+        - name: AIProviders__Claude__ApiKey
+          valueFrom:
+            secretKeyRef:
+              name: aiscan-secrets
+              key: claude-api-key
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/appsettings.Production.json
+          subPath: appsettings.json
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: aiscan-config
+---
+# kubernetes/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aisecurityscanner-service
+  namespace: aisecurityscanner
+spec:
+  selector:
+    app: aisecurityscanner
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5105
+  type: LoadBalancer
+```
+
+#### Step 2: Deploy to Kubernetes
+```bash
+# Apply manifests
+kubectl apply -f kubernetes/
+
+# Check deployment status
+kubectl get pods -n aisecurityscanner
+kubectl get services -n aisecurityscanner
+
+# Get external IP
+kubectl get service aisecurityscanner-service -n aisecurityscanner
+```
+
+## 📖 User Guide: How to Run Security Scanning
+
+### For Developers (CLI Workflow)
+
+#### Step 1: Initial Setup
+```bash
+# Authenticate with Claude Code
+aiscan auth login
+
+# Verify authentication
+aiscan auth status
+```
+
+#### Step 2: Scan a Single File
+```bash
+# Basic file scan
+aiscan scan file src/Controllers/UserController.cs
+
+# With custom output format
+aiscan scan file src/Controllers/UserController.cs --format json
+
+# Save results to file
+aiscan scan file src/Controllers/UserController.cs --format json > security-report.json
+```
+
+#### Step 3: Scan Entire Project
+```bash
+# Scan current project
+aiscan scan project
+
+# Scan specific directory
+aiscan scan directory ./src --format table
+
+# Recursive directory scan with CSV output
+aiscan scan directory ./src --recursive --format csv > full-scan.csv
+```
+
+#### Step 4: Compliance Scanning
+```bash
+# List available frameworks
+aiscan compliance list
+
+# Run PCI DSS compliance scan
+aiscan compliance scan --framework pci-dss --path ./src
+
+# Multiple compliance scans
+aiscan compliance scan --framework hipaa --path ./src --format json
+aiscan compliance scan --framework gdpr --path ./src --format json
+aiscan compliance scan --framework sox --path ./src --format json
+```
+
+### For Teams (API Workflow)
+
+#### Step 1: Access Swagger UI
+1. Navigate to: `http://your-domain:5105/swagger`
+2. Click "Authorize" button
+3. Enter your JWT token: `Bearer your-jwt-token`
+
+#### Step 2: Register Organization
+```bash
+# Register new user and organization
+curl -X POST "http://your-domain:5105/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@yourcompany.com",
+    "password": "SecurePassword123!",
+    "firstName": "Admin",
+    "lastName": "User",
+    "organizationName": "Your Company"
+  }'
+```
+
+#### Step 3: Add Repository
+```bash
+# Login to get JWT token
+TOKEN=$(curl -X POST "http://your-domain:5105/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@yourcompany.com","password":"SecurePassword123!"}' \
+  | jq -r '.token')
+
+# Add repository
+curl -X POST "http://your-domain:5105/api/repositories" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Project",
+    "gitUrl": "https://github.com/yourcompany/project.git",
+    "branch": "main",
+    "language": "CSharp"
+  }'
+```
+
+#### Step 4: Start Security Scan
+```bash
+# Start scan (replace {repositoryId} with actual ID)
+SCAN_ID=$(curl -X POST "http://your-domain:5105/api/scans/start" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repositoryId": "repository-guid-here",
+    "scanType": "Full",
+    "includeAIAnalysis": true
+  }' | jq -r '.scanId')
+
+# Monitor scan progress
+curl -X GET "http://your-domain:5105/api/scans/$SCAN_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### CI/CD Integration Examples
+
+#### GitHub Actions
+```yaml
+# .github/workflows/security-scan.yml
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Install AI Security Scanner CLI
+      run: |
+        git clone https://github.com/yourcompany/AISecurityScanner.git
+        cd AISecurityScanner/src/AISecurityScanner.CLI
+        dotnet build --configuration Release
+        dotnet tool install --global --add-source ./bin/Release AISecurityScanner.CLI
+        
+    - name: Authenticate CLI
+      env:
+        CLAUDE_TOKEN: ${{ secrets.CLAUDE_API_KEY }}
+      run: |
+        echo "$CLAUDE_TOKEN" | aiscan auth login --token-stdin
+        
+    - name: Run Security Scan
+      run: |
+        aiscan scan project --format json > security-results.json
+        
+    - name: Check for Critical Vulnerabilities
+      run: |
+        CRITICAL_COUNT=$(cat security-results.json | jq '[.vulnerabilities[] | select(.severity == "Critical")] | length')
+        if [ "$CRITICAL_COUNT" -gt 0 ]; then
+          echo "❌ Found $CRITICAL_COUNT critical vulnerabilities"
+          cat security-results.json | jq '.vulnerabilities[] | select(.severity == "Critical")'
+          exit 1
+        fi
+        echo "✅ No critical vulnerabilities found"
+        
+    - name: Run Compliance Scan
+      run: |
+        aiscan compliance scan --framework pci-dss --format json > compliance-results.json
+        
+    - name: Upload Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-results
+        path: |
+          security-results.json
+          compliance-results.json
+```
+
+#### Azure DevOps Pipeline
+```yaml
+# azure-pipelines.yml
+trigger:
+- main
+- develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+- task: UseDotNet@2
+  displayName: 'Use .NET 8 SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '8.0.x'
+
+- script: |
+    git clone https://github.com/yourcompany/AISecurityScanner.git
+    cd AISecurityScanner/src/AISecurityScanner.CLI
+    dotnet build --configuration $(buildConfiguration)
+    dotnet tool install --global --add-source ./bin/Release AISecurityScanner.CLI
+  displayName: 'Install AI Security Scanner CLI'
+
+- script: |
+    echo "$(CLAUDE_API_KEY)" | aiscan auth login --token-stdin
+  displayName: 'Authenticate CLI'
+  env:
+    CLAUDE_API_KEY: $(CLAUDE_API_KEY)
+
+- script: |
+    aiscan scan project --format json > $(Agent.TempDirectory)/security-results.json
+  displayName: 'Run Security Scan'
+
+- script: |
+    CRITICAL_COUNT=$(cat $(Agent.TempDirectory)/security-results.json | jq '[.vulnerabilities[] | select(.severity == "Critical")] | length')
+    if [ "$CRITICAL_COUNT" -gt 0 ]; then
+      echo "##vso[task.logissue type=error]Found $CRITICAL_COUNT critical vulnerabilities"
+      exit 1
+    fi
+    echo "✅ No critical vulnerabilities found"
+  displayName: 'Check Security Results'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '$(Agent.TempDirectory)/security-results.json'
+    testRunTitle: 'Security Scan Results'
 ```
 
 ### Production Configuration
 
-1. **Database**: Use RavenDB Cloud or self-hosted cluster
-2. **Secrets**: Use Azure Key Vault or similar
-3. **Logging**: Configure with Application Insights or ELK stack
-4. **SSL**: Configure proper SSL certificates
-5. **CORS**: Update allowed origins for production domains
+#### Environment Variables
+```bash
+# Required for production
+export ASPNETCORE_ENVIRONMENT=Production
+export RavenDb__Urls__0="https://your-ravendb-cluster.com"
+export RavenDb__Database="AISecurityScanner-Prod"
+export Jwt__Secret="Your-Super-Secure-256-Bit-Secret-Key-Here!"
+export AIProviders__Claude__ApiKey="your-production-claude-key"
+
+# Optional for enhanced security
+export Jwt__Issuer="your-domain.com"
+export Jwt__Audience="your-app-name"
+export Jwt__ExpirationMinutes=60
+```
+
+#### SSL/HTTPS Configuration
+```json
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Https": {
+        "Url": "https://+:5105",
+        "Certificate": {
+          "Path": "/app/certificates/cert.pfx",
+          "Password": "certificate-password"
+        }
+      }
+    }
+  }
+}
+```
+
+### Monitoring and Maintenance
+
+#### Health Checks
+```bash
+# API health
+curl https://your-domain:5105/api/health
+
+# Database connectivity
+curl https://your-domain:5105/api/health/db
+
+# AI provider availability
+curl https://your-domain:5105/api/health/ai
+```
+
+#### Log Monitoring
+```bash
+# View application logs
+docker logs aisecurityscanner-container
+
+# Follow real-time logs
+docker logs -f aisecurityscanner-container
+
+# Export logs for analysis
+docker logs aisecurityscanner-container > app-logs.txt
+```
+
+#### Performance Monitoring
+- Monitor API response times via health checks
+- Track memory usage and CPU utilization
+- Set up alerts for failed scans or high error rates
+- Monitor RavenDB performance and storage usage
 
 ## 🤝 Contributing
 
