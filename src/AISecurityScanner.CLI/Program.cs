@@ -11,6 +11,7 @@ using AISecurityScanner.Application.Services;
 using AISecurityScanner.Application.Interfaces;
 using AISecurityScanner.Infrastructure.AIProviders;
 using AISecurityScanner.Infrastructure;
+using AISecurityScanner.Domain.Interfaces;
 using Spectre.Console;
 
 namespace AISecurityScanner.CLI
@@ -645,6 +646,31 @@ namespace AISecurityScanner.CLI
                 builder.SetMinimumLevel(LogLevel.Warning);
             });
 
+            // HTTP Client
+            services.AddHttpClient();
+
+            // Claude Configuration
+            services.Configure<ClaudeConfiguration>(options =>
+            {
+                options.ApiKey = ""; // Will be set dynamically from ConfigService
+                options.ApiEndpoint = "https://api.anthropic.com/v1/messages";
+                options.Model = "claude-3-sonnet-20240229";
+                options.MaxTokens = 4096;
+                options.CostPerRequest = 0.015m;
+            });
+
+            // AutoMapper
+            services.AddAutoMapper(typeof(AISecurityScanner.Application.Mappings.DomainToDtoProfile));
+
+            // Mock Database Services for CLI (since CLI doesn't need full DB)
+            services.AddScoped<IUnitOfWork, MockUnitOfWork>();
+
+            // Register Compliance Infrastructure
+            services.AddComplianceInfrastructure();
+
+            // Application Services
+            services.AddScoped<IComplianceService, ComplianceService>();
+
             // CLI Services
             services.AddScoped<ConfigService>();
             services.AddScoped<AuthService>();
@@ -657,8 +683,8 @@ namespace AISecurityScanner.CLI
             services.AddScoped<ScanCommandV2>();
 
             // Infrastructure Services
-            services.AddScoped<ClaudeProvider>();
-            services.AddScoped<IAIProvider>(provider => provider.GetRequiredService<ClaudeProvider>());
+            services.AddScoped<CliClaudeProvider>();
+            services.AddScoped<IAIProvider>(provider => provider.GetRequiredService<CliClaudeProvider>());
 
             return services;
         }
